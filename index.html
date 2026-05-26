@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSV Bear Trap Time Finder</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --background: #f8fafc;
+            --text: #1e293b;
+            --border: #cbd5e1;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1.8fr;
+            gap: 25px;
+        }
+        @media (max-width: 1000px) {
+            .container { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        h2 { margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;}
+        label { display: block; margin: 15px 0 5px; font-weight: 600; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        .tz-display {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            margin-bottom: 15px;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+        .timeline-label { font-size: 0.85rem; color: #64748b; margin-bottom: 5px; }
+        .time-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 4px;
+            margin-bottom: 15px;
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .time-slot {
+            background: white;
+            border: 1px solid var(--border);
+            padding: 6px 2px;
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 4px;
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+        .time-slot:hover { background: #e2e8f0; }
+        .time-slot.selected { background: var(--primary); color: white; border-color: var(--primary); }
+        button {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover { background: #1d4ed8; }
+        .result-slot {
+            background: #f0fdf4;
+            border-left: 4px solid var(--success);
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+        .result-slot h3 { margin: 0 0 5px 0; color: #14532d; }
+        .badge {
+            display: inline-block;
+            background: #e2e8f0;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            margin: 3px;
+            font-weight: 500;
+        }
+        .stats {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: var(--primary);
+            background: #eff6ff;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 0.9em; }
+        th { background: #f1f5f9; }
+        .clear-btn { background: #64748b; padding: 4px 8px; font-size: 0.75rem; width: auto; margin: 0 0 10px auto; display: block; }
+        .clear-btn:hover { background: #475569; }
+        .delete-btn {
+            background: #fee2e2;
+            color: var(--danger);
+            border: 1px solid #fca5a5;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: auto;
+            margin: 0;
+            font-weight: 500;
+        }
+        .delete-btn:hover { background: var(--danger); color: white; border-color: var(--danger); }
+
+        /* Custom Mini Timeline Visual Display Graphics */
+        .mini-timeline {
+            display: flex;
+            gap: 2px;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 4px;
+            width: 240px;
+        }
+        .mini-block {
+            flex: 1;
+            height: 14px;
+            border-radius: 1px;
+            background: #cbd5e1;
+            position: relative;
+        }
+        .mini-block.active {
+            background: var(--success);
+        }
+        .mini-block .tooltip {
+            visibility: hidden;
+            background-color: #0f172a;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            padding: 2px 6px;
+            position: absolute;
+            z-index: 10;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .mini-block:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+<h1 style="text-align: center; margin-bottom: 30px;">🐻TSV Bear Trap Time Finder🐻</h1>
+
+<div class="container">
+    <div class="card">
+        <h2>Add Your Availability</h2>
+		Select all of your available times below in your local timezone (we will convert to UTC). 
+        <form id="participantForm">
+            <label for="name">Name</label>
+            <input type="text" id="name" required placeholder="e.g., Alice">
+
+            <label>Detected Timezone</label>
+            <div class="tz-display" id="tzDisplay">Detecting your location...</div>
+
+            <div style="display: flex; align-items: center;">
+                <label style="margin: 0;">Select Your Available Local Hours:</label>
+                <button type="button" class="clear-btn" id="clearSlots">Clear Grid</button>
+            </div>
+            
+            <div class="timeline-label">Morning / Afternoon (00:00 - 11:00)</div>
+            <div class="time-grid" id="amGrid"></div>
+
+            <div class="timeline-label">Afternoon / Evening (12:00 - 23:00)</div>
+            <div class="time-grid" id="pmGrid"></div>
+
+            <button type="submit" id="submitBtn">Submit My Times</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Optimal BTs</h2>
+        <div class="stats" id="globalStats">Loading data from cloud...</div>
+        
+        <div id="bestSlotsContainer">
+            <p style="color: #64748b;">Syncing with live calendar group...</p>
+        </div>
+
+        <h2>Player responses</h2>
+        <div style="overflow-x: auto;">
+            <table id="rosterTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Timezone</th>
+                        <th>Assigned Event</th>
+                        <th>Local Timeline (00-23h)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // FIREBASE CONFIG
+    const firebaseConfig = {
+		apiKey: "AIzaSyAKAPIqu1kMkQ94ExajYGNQ7NTkcx7TDT4",
+		authDomain: "beartimefinder.firebaseapp.com",
+		projectId: "beartimefinder",
+		storageBucket: "beartimefinder.firebasestorage.app",
+		messagingSenderId: "162685504171",
+		appId: "1:162685504171:web:25adfc9cb22d5488b745ee",
+		measurementId: "G-D3FXPGFW7T"
+		};
+
+    // Initialize Firebase & Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const participantsCollection = collection(db, "participants");
+
+    let participants = [];
+
+    // AUTOMATIC TIMEZONE DETECTION ENGINE
+    const detectedOffset = -(new Date().getTimezoneOffset() / 60);
+    const namedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const sign = detectedOffset >= 0 ? "+" : "";
+    document.getElementById('tzDisplay').innerText = `${namedTimezone} (UTC ${sign}${detectedOffset})`;
+
+    // Initialize UI Input Grids
+    const amGrid = document.getElementById('amGrid');
+    const pmGrid = document.getElementById('pmGrid');
+    for (let h = 0; h < 24; h++) {
+        const slot = document.createElement('div');
+        slot.className = 'time-slot';
+        slot.dataset.hour = h;
+        slot.innerText = `${h.toString().padStart(2, '0')}:00`;
+        slot.addEventListener('click', () => slot.classList.toggle('selected'));
+        if (h < 12) amGrid.appendChild(slot); else pmGrid.appendChild(slot);
+    }
+
+    document.getElementById('clearSlots').addEventListener('click', () => {
+        document.querySelectorAll('.time-slot').forEach(el => el.classList.remove('selected'));
+    });
+
+    // Write Data To Firestore
+    document.getElementById('participantForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const submitBtn = document.getElementById('submitBtn');
+        
+        const name = document.getElementById('name').value;
+        const selectedLocalHours = new Array(24).fill(0);
+        let selectionCount = 0;
+        
+        document.querySelectorAll('.time-slot.selected').forEach(slot => {
+            selectedLocalHours[parseInt(slot.dataset.hour)] = 1;
+            selectionCount++;
+        });
+
+        if (selectionCount === 0) {
+            alert("Please pick at least one hour block when you are free!");
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Saving to Cloud...";
+
+        // Map selections directly to standardized global UTC matrices
+        const utcAvailability = new Array(24).fill(0);
+        for(let h=0; h<24; h++) {
+            if(selectedLocalHours[h] === 1) {
+                let utcHour = (h - detectedOffset + 24) % 24;
+                utcAvailability[Math.floor(utcHour)] = 1;
+            }
+        }
+
+        try {
+            await addDoc(participantsCollection, {
+                name: name,
+                offset: detectedOffset,
+                localHoursArray: selectedLocalHours, // Save the actual local choices array
+                utcAvailability: utcAvailability
+            });
+
+            document.getElementById('name').value = '';
+            document.querySelectorAll('.time-slot').forEach(el => el.classList.remove('selected'));
+        } catch (error) {
+            console.error("Error saving data: ", error);
+            alert("Failed to sync data with the cloud server.");
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Submit My Times";
+        }
+    });
+
+    // Real-Time Sync Listener
+    onSnapshot(participantsCollection, (snapshot) => {
+        participants = [];
+        snapshot.forEach((snapshotDoc) => {
+            const data = snapshotDoc.data();
+            data.id = snapshotDoc.id; 
+            participants.push(data);
+        });
+        
+        if(participants.length > 0) {
+            calculateOptimalSlots();
+        } else {
+            document.getElementById('globalStats').innerText = "Total Participants: 0 | Add your entry to get started!";
+            document.getElementById('bestSlotsContainer').innerHTML = `<p style="color: #64748b;">No responses yet.</p>`;
+            document.querySelector('#rosterTable tbody').innerHTML = '';
+        }
+    });
+
+    window.deleteParticipant = async function(docId, name) {
+        if (confirm(`Are you sure you want to delete ${name}'s availability submission?`)) {
+            try {
+                const docRef = doc(db, "participants", docId);
+                await deleteDoc(docRef);
+            } catch (error) {
+                console.error("Error removing document: ", error);
+                alert("Could not remove the item from the cloud.");
+            }
+        }
+    };
+
+    function calculateOptimalSlots() {
+        let bestThree = [];
+        let maxCoverage = -1;
+
+        for (let i = 0; i < 22; i++) {
+            for (let j = i + 1; j < 23; j++) {
+                for (let k = j + 1; k < 24; k++) {
+                    let coveredCount = 0;
+                    participants.forEach(p => {
+                        if (p.utcAvailability[i] === 1 || p.utcAvailability[j] === 1 || p.utcAvailability[k] === 1) {
+                            coveredCount++;
+                        }
+                    });
+                    if (coveredCount > maxCoverage) {
+                        maxCoverage = coveredCount;
+                        bestThree = [i, j, k];
+                    }
+                }
+            }
+        }
+
+        let coveragePercent = Math.round((maxCoverage / participants.length) * 100);
+        document.getElementById('globalStats').innerText = 
+            `Total Participants: ${participants.length} | Max Overlap Coverage: ${coveragePercent}% (${maxCoverage}/${participants.length} people)`;
+
+        renderResults(bestThree);
+        renderRoster(bestThree);
+    }
+
+    function renderResults(bestHours) {
+        const container = document.getElementById('bestSlotsContainer');
+        container.innerHTML = '';
+
+        bestHours.forEach((utcHour, index) => {
+            let attendees = participants.filter(p => {
+                if (p.utcAvailability[utcHour] === 0) return false;
+                if (index === 1 && p.utcAvailability[bestHours[0]] === 1) return false;
+                if (index === 2 && (p.utcAvailability[bestHours[0]] === 1 || p.utcAvailability[bestHours[1]] === 1)) return false;
+                return true;
+            });
+
+            const slotDiv = document.createElement('div');
+            slotDiv.className = 'result-slot';
+            let timeStrUTC = `${utcHour.toString().padStart(2, '0')}:00 UTC`;
+
+            slotDiv.innerHTML = `
+                <h3>BT ${index + 1}: ${timeStrUTC}</h3>
+                <p style="margin: 5px 0;"><strong>Available players:</strong> Handles ${attendees.length} people based on custom times.</p>
+                <div>${attendees.map(p => `<span class="badge">${p.name} (Local: ${formatLocalTime(utcHour, p.offset)})</span>`).join('')}</div>
+            `;
+            container.appendChild(slotDiv);
+        });
+    }
+
+    function renderRoster(bestHours) {
+        const tbody = document.querySelector('#rosterTable tbody');
+        tbody.innerHTML = '';
+
+        participants.forEach(p => {
+            let assigned = "❌ None";
+            for (let i = 0; i < bestHours.length; i++) {
+                if (p.utcAvailability[bestHours[i]] === 1) {
+                    assigned = `Slot #${i + 1} (${bestHours[i].toString().padStart(2, '0')}:00 UTC)`;
+                    break;
+                }
+            }
+
+            // Build dynamic inline heatmap HTML
+            let timelineHTML = `<div class="mini-timeline">`;
+            // Fallback for older entries missing array structures
+            const hoursArray = p.localHoursArray || new Array(24).fill(0); 
+            
+            for(let h = 0; h < 24; h++) {
+                let isActive = hoursArray[h] === 1 ? 'active' : '';
+                let displayTime = `${h.toString().padStart(2, '0')}:00`;
+                timelineHTML += `
+                    <div class="mini-block ${isActive}">
+                        <span class="tooltip">${displayTime}</span>
+                    </div>`;
+            }
+            timelineHTML += `</div>`;
+
+            const tr = document.createElement('tr');
+            let offsetSign = p.offset >= 0 ? `+${p.offset}` : p.offset;
+            tr.innerHTML = `
+                <td><strong>${p.name}</strong></td>
+                <td>UTC ${offsetSign}</td>
+                <td style="color: ${assigned.includes('❌') ? '#dc2626' : '#16a34a'}; font-weight: 500;">${assigned}</td>
+                <td>${timelineHTML}</td>
+                <td>
+                    <button class="delete-btn" onclick="deleteParticipant('${p.id}', '${p.name}')">Delete</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function formatLocalTime(utcHour, offset) {
+        let localHour = (utcHour + offset + 24) % 24;
+        let mins = Number.isInteger(localHour) ? "00" : "30";
+        return `${Math.floor(localHour).toString().padStart(2, '0')}:${mins}`;
+    }
+</script>
+</body>
+</html>
