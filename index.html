@@ -36,6 +36,7 @@
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
             height: fit-content;
+            margin-bottom: 20px;
         }
         h2 { margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;}
         label { display: block; margin: 15px 0 5px; font-weight: 600; }
@@ -142,25 +143,9 @@
         }
         .delete-btn:hover { background: var(--danger); color: white; border-color: var(--danger); }
 
-        /* Custom Mini Timeline Visual Display Graphics */
-        .mini-timeline {
-            display: flex;
-            gap: 2px;
-            background: #f1f5f9;
-            padding: 4px;
-            border-radius: 4px;
-            width: 240px;
-        }
-        .mini-block {
-            flex: 1;
-            height: 14px;
-            border-radius: 1px;
-            background: #cbd5e1;
-            position: relative;
-        }
-        .mini-block.active {
-            background: var(--success);
-        }
+        .mini-timeline { display: flex; gap: 2px; background: #f1f5f9; padding: 4px; border-radius: 4px; width: 240px; }
+        .mini-block { flex: 1; height: 14px; border-radius: 1px; background: #cbd5e1; position: relative; }
+        .mini-block.active { background: var(--success); }
         .mini-block .tooltip {
             visibility: hidden;
             background-color: #0f172a;
@@ -178,9 +163,33 @@
             opacity: 0;
             transition: opacity 0.2s;
         }
-        .mini-block:hover .tooltip {
-            visibility: visible;
-            opacity: 1;
+        .mini-block:hover .tooltip { visibility: visible; opacity: 1; }
+
+        /* Styles for the Tie Display Container Box */
+        .tie-container {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            max-height: 180px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+        }
+        .tie-item {
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            color: #475569;
+        }
+        .tie-item.current {
+            border-color: var(--primary);
+            background: #eff6ff;
+            color: var(--primary);
+            font-weight: 600;
         }
     </style>
 </head>
@@ -191,7 +200,7 @@
 <div class="container">
     <div class="card">
         <h2>Add Your Availability</h2>
-		Select all of your available times below in your local timezone (we will convert to UTC). 
+		Select all of your available times below in your local timezone (we will convert to UTC).
         <form id="participantForm">
             <label for="name">Name</label>
             <input type="text" id="name" required placeholder="e.g., Alice">
@@ -214,28 +223,37 @@
         </form>
     </div>
 
-    <div class="card">
-        <h2>Optimal BTs</h2>
-        <div class="stats" id="globalStats">Loading data from cloud...</div>
-        
-        <div id="bestSlotsContainer">
-            <p style="color: #64748b;">Syncing with live calendar group...</p>
+    <div>
+        <div class="card">
+            <h2>Optimal Bear Traps</h2>
+            <div class="stats" id="globalStats">Loading data from cloud...</div>
+            
+            <div id="bestSlotsContainer">
+                <p style="color: #64748b;">Syncing with live calendar group...</p>
+            </div>
+
+            <h3 style="margin-top: 20px; font-size: 1.05rem; color: #334155;">Alternative Winning Combinations (Ties)</h3>
+            <div class="tie-container" id="tieContainer">
+                <p style="color: #94a3b8; font-style: italic; margin: 0;">No alternative ties calculated yet.</p>
+            </div>
         </div>
 
-        <h2>Player responses</h2>
-        <div style="overflow-x: auto;">
-            <table id="rosterTable">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Timezone</th>
-                        <th>Assigned Event</th>
-                        <th>Local Timeline (00-23h)</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+        <div class="card">
+            <h2>Roster & Individual Timelines</h2>
+            <div style="overflow-x: auto;">
+                <table id="rosterTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Timezone</th>
+                            <th>Assigned Event</th>
+                            <th>Global UTC Timeline (00-23z)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -261,6 +279,7 @@
     const participantsCollection = collection(db, "participants");
 
     let participants = [];
+    const REQUIRED_PASSWORD = "123456";
 
     // AUTOMATIC TIMEZONE DETECTION ENGINE
     const detectedOffset = -(new Date().getTimezoneOffset() / 60);
@@ -287,8 +306,14 @@
     // Write Data To Firestore
     document.getElementById('participantForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const submitBtn = document.getElementById('submitBtn');
         
+        const userPassword = prompt("Please enter the system password to submit your times:");
+        if (userPassword !== REQUIRED_PASSWORD) {
+            alert("❌ Incorrect password. Access Denied.");
+            return;
+        }
+
+        const submitBtn = document.getElementById('submitBtn');
         const name = document.getElementById('name').value;
         const selectedLocalHours = new Array(24).fill(0);
         let selectionCount = 0;
@@ -306,7 +331,6 @@
         submitBtn.disabled = true;
         submitBtn.innerText = "Saving to Cloud...";
 
-        // Map selections directly to standardized global UTC matrices
         const utcAvailability = new Array(24).fill(0);
         for(let h=0; h<24; h++) {
             if(selectedLocalHours[h] === 1) {
@@ -319,7 +343,7 @@
             await addDoc(participantsCollection, {
                 name: name,
                 offset: detectedOffset,
-                localHoursArray: selectedLocalHours, // Save the actual local choices array
+                localHoursArray: selectedLocalHours,
                 utcAvailability: utcAvailability
             });
 
@@ -348,12 +372,19 @@
         } else {
             document.getElementById('globalStats').innerText = "Total Participants: 0 | Add your entry to get started!";
             document.getElementById('bestSlotsContainer').innerHTML = `<p style="color: #64748b;">No responses yet.</p>`;
+            document.getElementById('tieContainer').innerHTML = `<p style="color: #94a3b8; font-style: italic; margin: 0;">No responses yet.</p>`;
             document.querySelector('#rosterTable tbody').innerHTML = '';
         }
     });
 
     window.deleteParticipant = async function(docId, name) {
         if (confirm(`Are you sure you want to delete ${name}'s availability submission?`)) {
+            const userPassword = prompt(`Enter password to authorize deleting ${name}'s record:`);
+            if (userPassword !== REQUIRED_PASSWORD) {
+                alert("❌ Incorrect password. Deletion aborted.");
+                return;
+            }
+
             try {
                 const docRef = doc(db, "participants", docId);
                 await deleteDoc(docRef);
@@ -365,9 +396,10 @@
     };
 
     function calculateOptimalSlots() {
-        let bestThree = [];
         let maxCoverage = -1;
+        let allWinners = []; // Array to collect tied high scores
 
+        // Combinatorial Exhaustive Check Loop
         for (let i = 0; i < 22; i++) {
             for (let j = i + 1; j < 23; j++) {
                 for (let k = j + 1; k < 24; k++) {
@@ -377,20 +409,56 @@
                             coveredCount++;
                         }
                     });
+
                     if (coveredCount > maxCoverage) {
                         maxCoverage = coveredCount;
-                        bestThree = [i, j, k];
+                        // Wipe old record data entirely, this is a clean structural breakthrough
+                        allWinners = [[i, j, k]]; 
+                    } else if (coveredCount === maxCoverage && maxCoverage > 0) {
+                        // Found a tie! Append this trio combo to our leaderboard registry array
+                        allWinners.push([i, j, k]);
                     }
                 }
             }
         }
+
+        // The primary displayed slot defaults back to the first chronological trio found
+        let bestThree = allWinners[0];
 
         let coveragePercent = Math.round((maxCoverage / participants.length) * 100);
         document.getElementById('globalStats').innerText = 
             `Total Participants: ${participants.length} | Max Overlap Coverage: ${coveragePercent}% (${maxCoverage}/${participants.length} people)`;
 
         renderResults(bestThree);
+        renderTies(allWinners, maxCoverage);
         renderRoster(bestThree);
+    }
+
+    function renderTies(allWinners, score) {
+        const tieContainer = document.getElementById('tieContainer');
+        tieContainer.innerHTML = '';
+
+        if (allWinners.length <= 1) {
+            tieContainer.innerHTML = `<p style="color: #64748b; font-style: italic; margin: 0;">No alternative combinations found. This is the single unique optimal set.</p>`;
+            return;
+        }
+
+        allWinners.forEach((combo, idx) => {
+            const item = document.createElement('div');
+            item.className = `tie-item ${idx === 0 ? 'current' : ''}`;
+            
+            let time1 = `${combo[0].toString().padStart(2,'0')}:00`;
+            let time2 = `${combo[1].toString().padStart(2,'0')}:00`;
+            let time3 = `${combo[2].toString().padStart(2,'0')}:00`;
+            
+            let currentLabel = idx === 0 ? ' (Active Display)' : '';
+
+            item.innerHTML = `
+                <span><strong>[${time1}, ${time2}, ${time3}] UTC</strong>${currentLabel}</span>
+                <span style="font-size: 0.85rem;">Covers ${score} people</span>
+            `;
+            tieContainer.appendChild(item);
+        });
     }
 
     function renderResults(bestHours) {
@@ -411,7 +479,7 @@
 
             slotDiv.innerHTML = `
                 <h3>BT ${index + 1}: ${timeStrUTC}</h3>
-                <p style="margin: 5px 0;"><strong>Available players:</strong> Handles ${attendees.length} people based on custom times.</p>
+                <p style="margin: 5px 0;"><strong>Active Window Audience:</strong> Accommodates ${attendees.length} players.</p>
                 <div>${attendees.map(p => `<span class="badge">${p.name} (Local: ${formatLocalTime(utcHour, p.offset)})</span>`).join('')}</div>
             `;
             container.appendChild(slotDiv);
@@ -431,17 +499,17 @@
                 }
             }
 
-            // Build dynamic inline heatmap HTML
             let timelineHTML = `<div class="mini-timeline">`;
-            // Fallback for older entries missing array structures
-            const hoursArray = p.localHoursArray || new Array(24).fill(0); 
+            const utcArray = p.utcAvailability || new Array(24).fill(0); 
             
             for(let h = 0; h < 24; h++) {
-                let isActive = hoursArray[h] === 1 ? 'active' : '';
-                let displayTime = `${h.toString().padStart(2, '0')}:00`;
+                let isActive = utcArray[h] === 1 ? 'active' : '';
+                let localHourFormatted = formatLocalTime(h, p.offset);
+                let tooltipText = `${h.toString().padStart(2, '0')}:00 UTC (Your local time: ${localHourFormatted})`;
+                
                 timelineHTML += `
                     <div class="mini-block ${isActive}">
-                        <span class="tooltip">${displayTime}</span>
+                        <span class="tooltip">${tooltipText}</span>
                     </div>`;
             }
             timelineHTML += `</div>`;
