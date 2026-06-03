@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TSV Bear Trap Time Finder</title>
+    <title>🐻TSV Bear Trap Time Finder🐻</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -165,31 +165,38 @@
         }
         .mini-block:hover .tooltip { visibility: visible; opacity: 1; }
 
-        /* Styles for the Tie Display Container Box */
         .tie-container {
             background: #f8fafc;
             border: 1px solid var(--border);
             border-radius: 8px;
             padding: 12px;
-            max-height: 180px;
+            max-height: 200px;
             overflow-y: auto;
             font-size: 0.9rem;
         }
         .tie-item {
-            padding: 6px 10px;
+            padding: 8px 12px;
             background: white;
             border: 1px solid #e2e8f0;
-            border-radius: 4px;
+            border-radius: 6px;
             margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
+            align-items: center;
             color: #475569;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .tie-item:hover {
+            border-color: #93c5fd;
+            background: #f8fafc;
         }
         .tie-item.current {
             border-color: var(--primary);
             background: #eff6ff;
             color: var(--primary);
             font-weight: 600;
+            box-shadow: 0 0 0 1px var(--primary);
         }
     </style>
 </head>
@@ -205,7 +212,7 @@
             <label for="name">Name</label>
             <input type="text" id="name" required placeholder="e.g., Alice">
 
-            <label>Detected Timezone</label>
+            <label>Detected Timezone (Auto-Adjusts for DST)</label>
             <div class="tz-display" id="tzDisplay">Detecting your location...</div>
 
             <div style="display: flex; align-items: center;">
@@ -233,6 +240,7 @@
             </div>
 
             <h3 style="margin-top: 20px; font-size: 1.05rem; color: #334155;">Alternative Winning Combinations (Ties)</h3>
+            <p style="font-size: 0.8rem; color: #64748b; margin-top: -5px; margin-bottom: 8px;">💡 Click any row below to swap schedules and audit user fit.</p>
             <div class="tie-container" id="tieContainer">
                 <p style="color: #94a3b8; font-style: italic; margin: 0;">No alternative ties calculated yet.</p>
             </div>
@@ -262,16 +270,15 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // FIREBASE CONFIG
+    // ⚠️ REPLACE THIS BLOCK WITH YOUR OWN FIREBASE CONFIG FROM STEP 2
     const firebaseConfig = {
-		apiKey: "AIzaSyAKAPIqu1kMkQ94ExajYGNQ7NTkcx7TDT4",
-		authDomain: "beartimefinder.firebaseapp.com",
-		projectId: "beartimefinder",
-		storageBucket: "beartimefinder.firebasestorage.app",
-		messagingSenderId: "162685504171",
-		appId: "1:162685504171:web:25adfc9cb22d5488b745ee",
-		measurementId: "G-D3FXPGFW7T"
-		};
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
 
     // Initialize Firebase & Firestore
     const app = initializeApp(firebaseConfig);
@@ -279,7 +286,11 @@
     const participantsCollection = collection(db, "participants");
 
     let participants = [];
-    const REQUIRED_PASSWORD = "TSV";
+    const REQUIRED_PASSWORD = "123456";
+    
+    let currentCalculatedWinners = [];
+    let currentSelectedWinnerIndex = 0;
+    let maxCoverageScore = 0;
 
     // AUTOMATIC TIMEZONE DETECTION ENGINE
     const detectedOffset = -(new Date().getTimezoneOffset() / 60);
@@ -368,6 +379,7 @@
         });
         
         if(participants.length > 0) {
+            currentSelectedWinnerIndex = 0; 
             calculateOptimalSlots();
         } else {
             document.getElementById('globalStats').innerText = "Total Participants: 0 | Add your entry to get started!";
@@ -396,10 +408,9 @@
     };
 
     function calculateOptimalSlots() {
-        let maxCoverage = -1;
-        let allWinners = []; // Array to collect tied high scores
+        maxCoverageScore = -1;
+        currentCalculatedWinners = [];
 
-        // Combinatorial Exhaustive Check Loop
         for (let i = 0; i < 22; i++) {
             for (let j = i + 1; j < 23; j++) {
                 for (let k = j + 1; k < 24; k++) {
@@ -410,54 +421,62 @@
                         }
                     });
 
-                    if (coveredCount > maxCoverage) {
-                        maxCoverage = coveredCount;
-                        // Wipe old record data entirely, this is a clean structural breakthrough
-                        allWinners = [[i, j, k]]; 
-                    } else if (coveredCount === maxCoverage && maxCoverage > 0) {
-                        // Found a tie! Append this trio combo to our leaderboard registry array
-                        allWinners.push([i, j, k]);
+                    if (coveredCount > maxCoverageScore) {
+                        maxCoverageScore = coveredCount;
+                        currentCalculatedWinners = [[i, j, k]]; 
+                    } else if (coveredCount === maxCoverageScore && maxCoverageScore > 0) {
+                        currentCalculatedWinners.push([i, j, k]);
                     }
                 }
             }
         }
 
-        // The primary displayed slot defaults back to the first chronological trio found
-        let bestThree = allWinners[0];
+        updateDashboardDisplay();
+    }
 
-        let coveragePercent = Math.round((maxCoverage / participants.length) * 100);
+    function updateDashboardDisplay() {
+        let bestThree = currentCalculatedWinners[currentSelectedWinnerIndex];
+        let coveragePercent = Math.round((maxCoverageScore / participants.length) * 100);
+        
         document.getElementById('globalStats').innerText = 
-            `Total Participants: ${participants.length} | Max Overlap Coverage: ${coveragePercent}% (${maxCoverage}/${participants.length} people)`;
+            `Total Participants: ${participants.length} | Max Overlap Coverage: ${coveragePercent}% (${maxCoverageScore}/${participants.length} people)`;
 
         renderResults(bestThree);
-        renderTies(allWinners, maxCoverage);
+        renderTiesHTML();
         renderRoster(bestThree);
     }
 
-    function renderTies(allWinners, score) {
+    window.selectTieCombination = function(index) {
+        currentSelectedWinnerIndex = index;
+        updateDashboardDisplay();
+    };
+
+    function renderTiesHTML() {
         const tieContainer = document.getElementById('tieContainer');
         tieContainer.innerHTML = '';
 
-        if (allWinners.length <= 1) {
+        if (currentCalculatedWinners.length <= 1) {
             tieContainer.innerHTML = `<p style="color: #64748b; font-style: italic; margin: 0;">No alternative combinations found. This is the single unique optimal set.</p>`;
             return;
         }
 
-        allWinners.forEach((combo, idx) => {
-            const item = document.createElement('div');
-            item.className = `tie-item ${idx === 0 ? 'current' : ''}`;
+        currentCalculatedWinners.forEach((combo, idx) => {
+            const isCurrent = idx === currentSelectedWinnerIndex;
             
             let time1 = `${combo[0].toString().padStart(2,'0')}:00`;
             let time2 = `${combo[1].toString().padStart(2,'0')}:00`;
             let time3 = `${combo[2].toString().padStart(2,'0')}:00`;
             
-            let currentLabel = idx === 0 ? ' (Active Display)' : '';
+            let labelModifier = isCurrent ? ' (Active Display) 🎯' : '';
 
-            item.innerHTML = `
-                <span><strong>[${time1}, ${time2}, ${time3}] UTC</strong>${currentLabel}</span>
-                <span style="font-size: 0.85rem;">Covers ${score} people</span>
+            const div = document.createElement('div');
+            div.className = `tie-item ${isCurrent ? 'current' : ''}`;
+            div.setAttribute('onclick', `selectTieCombination(${idx})`);
+            div.innerHTML = `
+                <span><strong>[${time1}, ${time2}, ${time3}] UTC</strong>${labelModifier}</span>
+                <span style="font-size: 0.85rem;">Covers ${maxCoverageScore} people</span>
             `;
-            tieContainer.appendChild(item);
+            tieContainer.appendChild(div);
         });
     }
 
@@ -477,9 +496,10 @@
             slotDiv.className = 'result-slot';
             let timeStrUTC = `${utcHour.toString().padStart(2, '0')}:00 UTC`;
 
+            // Updated label text to match "BT" format strings
             slotDiv.innerHTML = `
-                <h3>BT ${index + 1}: ${timeStrUTC}</h3>
-                <p style="margin: 5px 0;"><strong>Active Window Audience:</strong> Accommodates ${attendees.length} players.</p>
+                <h3>BT #${index + 1}: ${timeStrUTC}</h3>
+                <p style="margin: 5px 0;"><strong>Active Window Audience:</strong> Handles ${attendees.length} people based on custom times.</p>
                 <div>${attendees.map(p => `<span class="badge">${p.name} (Local: ${formatLocalTime(utcHour, p.offset)})</span>`).join('')}</div>
             `;
             container.appendChild(slotDiv);
@@ -494,7 +514,8 @@
             let assigned = "❌ None";
             for (let i = 0; i < bestHours.length; i++) {
                 if (p.utcAvailability[bestHours[i]] === 1) {
-                    assigned = `Slot #${i + 1} (${bestHours[i].toString().padStart(2, '0')}:00 UTC)`;
+                    // Updated label assignment strings to match "BT" format
+                    assigned = `BT #${i + 1} (${bestHours[i].toString().padStart(2, '0')}:00 UTC)`;
                     break;
                 }
             }
